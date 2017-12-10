@@ -6,7 +6,6 @@ from six.moves import xrange, zip, zip_longest
 
 import functools
 import itertools
-import logging
 import math
 import warnings
 
@@ -43,7 +42,6 @@ from matplotlib.cbook import (
 from matplotlib.container import BarContainer, ErrorbarContainer, StemContainer
 from matplotlib.axes._base import _AxesBase, _process_plot_format
 
-_log = logging.getLogger(__name__)
 
 rcParams = matplotlib.rcParams
 
@@ -136,8 +134,7 @@ class Axes(_AxesBase):
             raise ValueError("'%s' is not a valid location" % loc)
         return title.get_text()
 
-    def set_title(self, label, fontdict=None, loc="center", pad=None,
-                    **kwargs):
+    def set_title(self, label, fontdict=None, loc="center", **kwargs):
         """
         Set a title for the axes.
 
@@ -162,10 +159,6 @@ class Axes(_AxesBase):
         loc : {'center', 'left', 'right'}, str, optional
             Which title to set, defaults to 'center'
 
-        pad : float
-            The offset of the title from the top of the axes, in points.
-            Default is ``None`` to use rcParams['axes.titlepad'].
-
         Returns
         -------
         text : :class:`~matplotlib.text.Text`
@@ -189,9 +182,6 @@ class Axes(_AxesBase):
             'fontweight': rcParams['axes.titleweight'],
             'verticalalignment': 'baseline',
             'horizontalalignment': loc.lower()}
-        if pad is None:
-            pad = rcParams['axes.titlepad']
-        self._set_title_offset_trans(float(pad))
         title.set_text(label)
         title.update(default)
         if fontdict is not None:
@@ -1689,6 +1679,7 @@ class Axes(_AxesBase):
 
         Parameters
         ----------
+
         x : sequence of scalars of length n
 
         y : sequence of scalars of length n
@@ -1742,10 +1733,10 @@ class Axes(_AxesBase):
         x = detrend(np.asarray(x))
         y = detrend(np.asarray(y))
 
-        correls = np.correlate(x, y, mode=2)
+        c = np.correlate(x, y, mode=2)
 
         if normed:
-            correls /= np.sqrt(np.dot(x, x) * np.dot(y, y))
+            c /= np.sqrt(np.dot(x, x) * np.dot(y, y))
 
         if maxlags is None:
             maxlags = Nx - 1
@@ -1755,19 +1746,18 @@ class Axes(_AxesBase):
                              'positive < %d' % Nx)
 
         lags = np.arange(-maxlags, maxlags + 1)
-        correls = correls[Nx - 1 - maxlags:Nx + maxlags]
+        c = c[Nx - 1 - maxlags:Nx + maxlags]
 
         if usevlines:
-            a = self.vlines(lags, [0], correls, **kwargs)
-            # Make label empty so only vertical lines get a legend entry
-            kwargs.pop('label', '')
+            a = self.vlines(lags, [0], c, **kwargs)
             b = self.axhline(**kwargs)
         else:
+
             kwargs.setdefault('marker', 'o')
             kwargs.setdefault('linestyle', 'None')
-            a, = self.plot(lags, correls, **kwargs)
+            a, = self.plot(lags, c, **kwargs)
             b = None
-        return lags, correls, a, b
+        return lags, c, a, b
 
     #### Specialized plotting
 
@@ -2979,7 +2969,7 @@ class Axes(_AxesBase):
             # select points without upper/lower limits in x and
             # draw normal errorbars for these points
             noxlims = ~(xlolims | xuplims)
-            if noxlims.any() or len(noxlims) == 0:
+            if noxlims.any():
                 yo, _ = xywhere(y, right, noxlims & everymask)
                 lo, ro = xywhere(left, right, noxlims & everymask)
                 barcols.append(self.hlines(yo, lo, ro, **eb_lines_style))
@@ -3028,7 +3018,7 @@ class Axes(_AxesBase):
             # select points without upper/lower limits in y and
             # draw normal errorbars for these points
             noylims = ~(lolims | uplims)
-            if noylims.any() or len(noylims) == 0:
+            if noylims.any():
                 xo, _ = xywhere(x, lower, noylims & everymask)
                 lo, uo = xywhere(lower, upper, noylims & everymask)
                 barcols.append(self.vlines(xo, lo, uo, **eb_lines_style))
@@ -5192,21 +5182,7 @@ class Axes(_AxesBase):
             return X, Y, C
 
         if len(args) == 3:
-            # Check x and y for bad data...
-            C = np.asanyarray(args[2])
-            X, Y = [cbook.safe_masked_invalid(a) for a in args[:2]]
-            if funcname == 'pcolormesh':
-                if np.ma.is_masked(X) or np.ma.is_masked(Y):
-                    raise ValueError(
-                        'x and y arguments to pcolormesh cannot have '
-                        'non-finite values or be of type '
-                        'numpy.ma.core.MaskedArray with masked values')
-                # safe_masked_invalid() returns an ndarray for dtypes other
-                # than floating point.
-                if isinstance(X, np.ma.core.MaskedArray):
-                    X = X.data  # strip mask as downstream doesn't like it...
-                if isinstance(Y, np.ma.core.MaskedArray):
-                    Y = Y.data
+            X, Y, C = [np.asanyarray(a) for a in args]
             numRows, numCols = C.shape
         else:
             raise TypeError(
@@ -5601,6 +5577,7 @@ class Axes(_AxesBase):
         # convert to one dimensional arrays
         C = C.ravel()
         coords = np.column_stack((X, Y)).astype(float, copy=False)
+
         collection = mcoll.QuadMesh(Nx - 1, Ny - 1, coords,
                                     antialiased=antialiased, shading=shading,
                                     **kwargs)
@@ -5902,7 +5879,7 @@ class Axes(_AxesBase):
         Parameters
         ----------
         x : (n,) array or sequence of (n,) arrays
-            Input values, this takes either a single array or a sequence of
+            Input values, this takes either a single array or a sequency of
             arrays which are not required to be of the same length
 
         bins : integer or sequence or 'auto', optional
@@ -6051,9 +6028,6 @@ class Axes(_AxesBase):
 
             Default is ``False``
 
-        normed : bool, optional
-            Deprecated; use the density keyword argument instead.
-
         Returns
         -------
         n : array or list of arrays
@@ -6111,40 +6085,36 @@ class Axes(_AxesBase):
         if histtype == 'barstacked' and not stacked:
             stacked = True
 
-        if normed is not None:
-            warnings.warn("The 'normed' kwarg is deprecated, and has been "
-                          "replaced by the 'density' kwarg.")
         if density is not None and normed is not None:
             raise ValueError("kwargs 'density' and 'normed' cannot be used "
                              "simultaneously. "
                              "Please only use 'density', since 'normed'"
-                             "is deprecated.")
+                             "will be deprecated.")
 
-        # basic input validation
-        input_empty = np.size(x) == 0
-        # Massage 'x' for processing.
-        if input_empty:
-            x = [np.array([])]
-        else:
-            x = cbook._reshape_2D(x, 'x')
-        nx = len(x)  # number of datasets
-
-        # Process unit information
-        # Unit conversion is done individually on each dataset
-        self._process_unit_info(xdata=x[0], kwargs=kwargs)
-        x = [self.convert_xunits(xi) for xi in x]
-
+        # process the unit information
+        self._process_unit_info(xdata=x, kwargs=kwargs)
+        x = self.convert_xunits(x)
         if bin_range is not None:
             bin_range = self.convert_xunits(bin_range)
 
         # Check whether bins or range are given explicitly.
         binsgiven = (cbook.iterable(bins) or bin_range is not None)
 
+        # basic input validation
+        input_empty = np.size(x) == 0
+
+        # Massage 'x' for processing.
+        if input_empty:
+            x = np.array([[]])
+        else:
+            x = cbook._reshape_2D(x, 'x')
+        nx = len(x)  # number of datasets
+
         # We need to do to 'weights' what was done to 'x'
         if weights is not None:
             w = cbook._reshape_2D(weights, 'weights')
         else:
-            w = [None] * nx
+            w = [None]*nx
 
         if len(w) != nx:
             raise ValueError('weights should have the same shape as x')
@@ -7374,7 +7344,7 @@ class Axes(_AxesBase):
     @_preprocess_data(replace_names=["dataset"], label_namer=None)
     def violinplot(self, dataset, positions=None, vert=True, widths=0.5,
                    showmeans=False, showextrema=True, showmedians=False,
-                   points=100, bw_method=None):
+                   percentiles=[], points=100, bw_method=None):
         """
         Make a violin plot.
 
@@ -7409,6 +7379,10 @@ class Axes(_AxesBase):
 
         showmedians : bool, default = False
           If `True`, will toggle rendering of the medians.
+
+        percentiles : array-like, default = []
+          Displays percentiles in the plot for all the given percentiles
+          in the set
 
         points : scalar, default = 100
           Defines the number of points to evaluate each of the
@@ -7457,6 +7431,11 @@ class Axes(_AxesBase):
               :class:`matplotlib.collections.LineCollection` instance
               created to identify the median values of each of the
               violin's distribution.
+
+            - ``cpercentiles`` : A
+              :class:`matplotlib.collections.LineCollection` instance
+              created to identify the percentile values of each of the
+              violins' distributions
         """
 
         def _kde_method(X, coords):
@@ -7466,7 +7445,8 @@ class Axes(_AxesBase):
             kde = mlab.GaussianKDE(X, bw_method)
             return kde.evaluate(coords)
 
-        vpstats = cbook.violin_stats(dataset, _kde_method, points=points)
+        vpstats = cbook.violin_stats(dataset, _kde_method, points=points,
+                                     percentiles=percentiles)
         return self.violin(vpstats, positions=positions, vert=vert,
                            widths=widths, showmeans=showmeans,
                            showextrema=showextrema, showmedians=showmedians)
@@ -7501,6 +7481,8 @@ class Axes(_AxesBase):
 
           - ``max``: The maximum value for this violin's dataset.
 
+          - ``percentiles``: The percentiles for this violin's dataset.
+
         positions : array-like, default = [1, 2, ..., n]
           Sets the positions of the violins. The ticks and limits are
           automatically set to match the positions.
@@ -7522,6 +7504,10 @@ class Axes(_AxesBase):
 
         showmedians : bool, default = False
           If true, will toggle rendering of the medians.
+
+        percentiles : array-like, default = []
+          Displays percentiles in the plot for all the given percentiles in the set.
+
 
         Returns
         -------
@@ -7558,6 +7544,11 @@ class Axes(_AxesBase):
               :class:`matplotlib.collections.LineCollection` instance
               created to identify the median values of each of the
               violin's distribution.
+              
+            - ``cpercentiles``: A
+              :class:`matplotlib.collections.LineCollection` instance
+              created to identify the percentiles values of each of the
+              violin's distribution.
 
         """
 
@@ -7566,6 +7557,7 @@ class Axes(_AxesBase):
         mins = []
         maxes = []
         medians = []
+        percentiles = []
 
         # Collections to be returned
         artists = {}
@@ -7622,6 +7614,7 @@ class Axes(_AxesBase):
             mins.append(stats['min'])
             maxes.append(stats['max'])
             medians.append(stats['median'])
+            percentiles.append(stats['percentiles'])
         artists['bodies'] = bodies
 
         # Render means
@@ -7640,10 +7633,17 @@ class Axes(_AxesBase):
 
         # Render medians
         if showmedians:
-            artists['cmedians'] = perp_lines(medians,
-                                             pmins,
-                                             pmaxes,
+            artists['cmedians'] = perp_lines(medians, pmins, pmaxes,
                                              colors=edgecolor)
+
+        # Render percentiles
+        artists['cpercentiles'] = []
+        for pcs, pmin, pmax in zip(percentiles, pmins, pmaxes):
+            linelen = pmax - pmin
+            artists['cpercentiles'].append(perp_lines(pcs,
+                                                      pmin + linelen * 0.17,
+                                                      pmax - linelen * 0.17,
+                                                      colors=edgecolor))
 
         return artists
 

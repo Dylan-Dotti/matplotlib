@@ -255,7 +255,8 @@ def _exception_printer(exc):
 
 
 class CallbackRegistry(object):
-    """Handle registering and disconnecting for a set of signals and callbacks:
+    """Handle registering and disconnecting for a set of signals and
+    callbacks:
 
         >>> def oneat(x):
         ...    print('eat', x)
@@ -331,7 +332,9 @@ class CallbackRegistry(object):
         self.__init__(**state)
 
     def connect(self, s, func):
-        """Register *func* to be called when signal *s* is generated.
+        """
+        register *func* to be called when a signal *s* is generated
+        func will be called
         """
         self._func_cid_map.setdefault(s, WeakKeyDictionary())
         # Note proxy not needed in python 3.
@@ -360,7 +363,8 @@ class CallbackRegistry(object):
                 del self._func_cid_map[signal]
 
     def disconnect(self, cid):
-        """Disconnect the callback registered with callback id *cid*.
+        """
+        disconnect the callback registered with callback id *cid*
         """
         for eventname, callbackd in list(six.iteritems(self.callbacks)):
             try:
@@ -377,10 +381,8 @@ class CallbackRegistry(object):
 
     def process(self, s, *args, **kwargs):
         """
-        Process signal *s*.
-
-        All of the functions registered to receive callbacks on *s* will be
-        called with ``*args`` and ``**kwargs``.
+        process signal `s`.  All of the functions registered to receive
+        callbacks on `s` will be called with ``**args`` and ``**kwargs``
         """
         if s in self.callbacks:
             for cid, proxy in list(six.iteritems(self.callbacks[s])):
@@ -1557,26 +1559,24 @@ class Grouper(object):
 
 
 def simple_linear_interpolation(a, steps):
-    """
-    Resample an array with ``steps - 1`` points between original point pairs.
+    if steps == 1:
+        return a
 
-    Parameters
-    ----------
-    a : array, shape (n, ...)
-    steps : int
+    steps = int(np.floor(steps))
+    new_length = ((len(a) - 1) * steps) + 1
+    new_shape = list(a.shape)
+    new_shape[0] = new_length
+    result = np.zeros(new_shape, a.dtype)
 
-    Returns
-    -------
-    array, shape ``((n - 1) * steps + 1, ...)``
+    result[0] = a[0]
+    a0 = a[0:-1]
+    a1 = a[1:]
+    delta = ((a1 - a0) / steps)
+    for i in range(1, steps):
+        result[i::steps] = delta * i + a0
+    result[steps::steps] = a1
 
-    Along each column of *a*, ``(steps - 1)`` points are introduced between
-    each original values; the values are linearly interpolated.
-    """
-    fps = a.reshape((len(a), -1))
-    xp = np.arange(len(a)) * steps
-    x = np.arange((len(a) - 1) * steps + 1)
-    return (np.column_stack([np.interp(x, xp, fp) for fp in fps.T])
-            .reshape((len(x),) + a.shape[1:]))
+    return result
 
 
 @deprecated('2.1', alternative='shutil.rmtree')
@@ -2047,7 +2047,7 @@ def _reshape_2D(X, name):
         raise ValueError("{} must have 2 or fewer dimensions".format(name))
 
 
-def violin_stats(X, method, points=100):
+def violin_stats(X, method, points=100, percentiles=[]):
     """
     Returns a list of dictionaries of data which can be used to draw a series
     of violin plots. See the `Returns` section below to view the required keys
@@ -2071,6 +2071,9 @@ def violin_stats(X, method, points=100):
         Defines the number of points to evaluate each of the gaussian kernel
         density estimates at.
 
+    percentiles : array-like, default = []
+        Defines a set of percentiles, if any, that will be displayed per plotted point
+
     Returns
     -------
 
@@ -2085,6 +2088,7 @@ def violin_stats(X, method, points=100):
         - median: The median value for this column of data.
         - min: The minimum value for this column of data.
         - max: The maximum value for this column of data.
+        - percentiles: The set of percentiles that will be rendered for this data.
     """
 
     # List of dictionaries describing each of the violins.
@@ -2093,7 +2097,13 @@ def violin_stats(X, method, points=100):
     # Want X to be a list of data sequences
     X = _reshape_2D(X, "X")
 
-    for x in X:
+    if percentiles is None:
+        percentiles = []
+    percentiles = _reshape_2D(percentiles, "percentiles")
+    while len(percentiles) < len(X):
+        percentiles.append([])
+
+    for x, pcs in zip(X, percentiles):
         # Dictionary of results for this distribution
         stats = {}
 
@@ -2111,6 +2121,7 @@ def violin_stats(X, method, points=100):
         stats['median'] = np.median(x)
         stats['min'] = min_val
         stats['max'] = max_val
+        stats['percentiles'] = np.percentile(x, pcs)
 
         # Append to output
         vpstats.append(stats)
